@@ -145,25 +145,25 @@ pipeline {
                     echo "Deploying ${env.APP_NAME} on Host Port 8082..."
                     
                     sh '''
-                        # Stop existing running app on port 8082 if active
+                        # 1. Copy the built war/jar artifact to a persistent host location (/var/tmp)
+                        WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
+                        if [ -z "$WAR_FILE" ]; then
+                            echo "ERROR: No war or jar artifact found in target/"
+                            exit 1
+                        fi
+                        
+                        echo "Copying $WAR_FILE to /var/tmp/app.war"
+                        cp "$WAR_FILE" /var/tmp/app.war
+
+                        # 2. Kill any existing process running on port 8082
                         PID=$(lsof -ti:8082 || true)
                         if [ -n "$PID" ]; then
                             echo "Stopping existing process on port 8082 (PID: $PID)..."
                             kill -9 $PID || true
                         fi
 
-                        # Locate packaged artifact
-                        WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
-
-                        if [ -z "$WAR_FILE" ]; then
-                            echo "ERROR: No war or jar artifact found in target/"
-                            exit 1
-                        fi
-
-                        echo "Found artifact: $WAR_FILE"
-
-                        # Prevent Jenkins process tree killer from terminating background process
-                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar $WAR_FILE --server.port=8082 > /tmp/app.log 2>&1 &
+                        # 3. Launch background process on host OS using JENKINS_NODE_COOKIE
+                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar /var/tmp/app.war --server.port=8082 > /var/tmp/app.log 2>&1 &
                         
                         sleep 5
                         echo "Deployment command issued successfully."
@@ -175,7 +175,6 @@ pipeline {
                 failure { echo "Deployment failed." }
             }
         }
-
     }
 
     post {
