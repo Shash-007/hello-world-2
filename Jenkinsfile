@@ -140,25 +140,30 @@ pipeline {
 
         // ── STAGE 8: Deploy Application ───────────────────────────────────
         stage('Deploy Application') {
-            agent any
             steps {
                 script {
                     echo "Deploying ${env.APP_NAME} on Host Port 8082..."
                     
                     sh '''
                         # Stop existing running app on port 8082 if active
-                        PID=$(sudo lsof -ti:8082 || true)
+                        PID=$(lsof -ti:8082 || true)
                         if [ -n "$PID" ]; then
                             echo "Stopping existing process on port 8082 (PID: $PID)..."
-                            sudo kill -9 $PID || true
+                            kill -9 $PID || true
                         fi
 
-                        # Locate artifact file
+                        # Locate packaged artifact
                         WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
 
-                        # Prevent Jenkins process killer from killing background app
-                        export JENKINS_NODE_COOKIE=dontKillMe
-                        nohup java -jar $WAR_FILE --server.port=8082 > /var/tmp/app.log 2>&1 &
+                        if [ -z "$WAR_FILE" ]; then
+                            echo "ERROR: No war or jar artifact found in target/"
+                            exit 1
+                        fi
+
+                        echo "Found artifact: $WAR_FILE"
+
+                        # Prevent Jenkins process tree killer from terminating background process
+                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar $WAR_FILE --server.port=8082 > /tmp/app.log 2>&1 &
                         
                         sleep 5
                         echo "Deployment command issued successfully."
@@ -166,7 +171,7 @@ pipeline {
                 }
             }
             post {
-                success { echo "Deployment complete! App running at http://<EC2_PUBLIC_IP>:8082" }
+                success { echo "Deployment complete! App running at http://15.168.173.29:8082" }
                 failure { echo "Deployment failed." }
             }
         }
