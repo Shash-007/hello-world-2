@@ -8,8 +8,8 @@ pipeline {
     }
 
     environment {
-        APP_NAME     = 'hello-world-2'
-        APP_VERSION  = "1.0.${env.BUILD_NUMBER}"
+        APP_NAME    = 'hello-world-2'
+        APP_VERSION = "1.0.${env.BUILD_NUMBER}"
     }
 
     options {
@@ -17,7 +17,6 @@ pipeline {
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
         timestamps()
-        // yansiColor('xterm')
     }
 
     triggers {
@@ -30,7 +29,6 @@ pipeline {
             steps {
                 checkout scm
                 echo "Branch: ${env.GIT_BRANCH} | Commit: ${env.GIT_COMMIT[0..7]}"
-                sh 'git log --oneline -5'
             }
         }
 
