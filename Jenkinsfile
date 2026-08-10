@@ -91,6 +91,20 @@ pipeline {
             }
         }
 
+        // ── STAGE 6: Package & Archive ────────────────────────────────────
+        stage('Package & Archive') {
+            steps {
+                echo "Packaging ${env.APP_NAME} v${env.APP_VERSION}"
+                sh "mvn package -DskipTests -B -Drevision=${env.APP_VERSION}"
+                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: false, fingerprint: true
+                echo "Artifact archived: ${env.APP_NAME}-${env.APP_VERSION}.jar"
+            }
+            post {
+                success { echo 'Package and archive completed successfully.' }
+                failure { echo 'Packaging failed — check Maven logs.' }
+            }
+        }
+
     }
 
     post {
