@@ -25,10 +25,23 @@ pipeline {
 
     stages {
 
+        // ── STAGE 1: Checkout ─────────────────────────────────────────────
         stage('Checkout') {
             steps {
                 checkout scm
                 echo "Branch: ${env.GIT_BRANCH} | Commit: ${env.GIT_COMMIT[0..7]}"
+            }
+        }
+
+        // ── STAGE 2: Build ────────────────────────────────────────────────
+        stage('Build') {
+            steps {
+                echo "Building ${env.APP_NAME} v${env.APP_VERSION}"
+                sh 'mvn clean compile -B -Dmaven.test.skip=true'
+            }
+            post {
+                success { echo 'Compile successful — moving to Test stage.' }
+                failure { echo 'Compile FAILED — check pom.xml and source errors.' }
             }
         }
 
