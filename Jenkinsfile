@@ -62,7 +62,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube-Local') {
                     sh '''
-                        mvn sonar:sonar \
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
                           -Dsonar.projectKey=hello-world-2 \
                           -Dsonar.projectName="hello-world-2" \
                           -Dsonar.java.binaries=target/classes
