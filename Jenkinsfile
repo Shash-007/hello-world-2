@@ -140,24 +140,25 @@ pipeline {
 
         // ── STAGE 8: Deploy Application ───────────────────────────────────
         stage('Deploy Application') {
-            agent any // Runs on host node so it can launch application on port 8082
+            agent any
             steps {
                 script {
                     echo "Deploying ${env.APP_NAME} on Host Port 8082..."
                     
                     sh '''
                         # Stop existing running app on port 8082 if active
-                        PID=$(lsof -ti:8082 || true)
+                        PID=$(sudo lsof -ti:8082 || true)
                         if [ -n "$PID" ]; then
                             echo "Stopping existing process on port 8082 (PID: $PID)..."
-                            kill -9 $PID || true
+                            sudo kill -9 $PID || true
                         fi
 
                         # Locate artifact file
                         WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
 
-                        # Run Spring Boot app in background on port 8082 using BUILD_ID to prevent Jenkins from killing background process
-                        BUILD_ID=dontKillMe nohup java -jar $WAR_FILE --server.port=8082 > app.log 2>&1 &
+                        # Prevent Jenkins process killer from killing background app
+                        export JENKINS_NODE_COOKIE=dontKillMe
+                        nohup java -jar $WAR_FILE --server.port=8082 > /var/tmp/app.log 2>&1 &
                         
                         sleep 5
                         echo "Deployment command issued successfully."
