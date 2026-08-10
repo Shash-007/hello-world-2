@@ -69,7 +69,8 @@ pipeline {
                           -Dsonar.host.url=http://172.31.46.86:9000 \
                           -Dsonar.projectKey=hello-world-2 \
                           -Dsonar.projectName="hello-world-2" \
-                          -Dsonar.java.binaries=target/classes
+                          -Dsonar.java.binaries=target/classes \
+                          -Dsonar.userHome=.m2/.sonar
                     '''
                 }
             }
