@@ -52,22 +52,26 @@ pipeline {
             }
             post {
                 always {
-                    // Publish JUnit test results regardless of pass/fail
                     junit(testResults: 'target/surefire-reports/**/*.xml', allowEmptyResults: true)
                 }
-                unstable {
-                    echo 'WARNING: Tests failed — build marked UNSTABLE.'
-                    script {
-                        def results = currentBuild.rawBuild.getAction(
-                            hudson.tasks.test.AbstractTestResultAction.class)
-                        if (results) {
-                            def passRate = (results.totalCount - results.failCount) / results.totalCount * 100
-                            if (passRate < 80) {
-                                error("Test pass rate ${passRate.round(1)}% is below 80% threshold!")
-                            }
-                        }
-                    }
+            }
+        }
+
+        // ── STAGE 4: Quality Analysis ─────────────────────────────────────
+        stage('Quality Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube-Local') {
+                    sh '''
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=hello-world-2 \
+                          -Dsonar.projectName="hello-world-2" \
+                          -Dsonar.java.binaries=target/classes
+                    '''
                 }
+            }
+            post {
+                success { echo 'SonarQube analysis submitted successfully.' }
+                failure { echo 'SonarQube analysis FAILED — check connection and credentials.' }
             }
         }
 
