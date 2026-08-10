@@ -3,7 +3,6 @@ pipeline {
     agent {
         docker {
             image 'maven:3.9.8-eclipse-temurin-21'
-            // Avoid host mount permission issues by removing $HOME/.m2 binding
             args  '--entrypoint=""'
         }
     }
@@ -109,7 +108,6 @@ pipeline {
         stage('Publish to Nexus') {
             steps {
                 script {
-                    // Detect if the build output is a .jar or .war file
                     def artifactFile = sh(
                         script: 'ls target/*.jar target/*.war 2>/dev/null | head -n 1',
                         returnStdout: true
@@ -118,26 +116,57 @@ pipeline {
                     def fileExtension = artifactFile.endsWith('.war') ? 'war' : 'jar'
                     
                     nexusArtifactUploader(
-                        nexusVersion: 'nexus3',
-                        protocol: 'http',
-                        nexusUrl: '172.17.0.1:8081',
-                        groupId: 'io.techbuild',
-                        artifactId: 'hello-world-2',
-                        version: "1.0.${BUILD_NUMBER}",
-                        repository: 'techbuild-releases',
-                        credentialsId: 'nexus-creds', // Must match exact ID in Jenkins Credentials
-                        artifacts: [
-                            [artifactId: 'hello-world-2',
+                        nexusVersion:  'nexus3',
+                        protocol:      'http',
+                        nexusUrl:      '172.17.0.1:8081',
+                        groupId:       'io.techbuild',
+                        version:       env.APP_VERSION,
+                        repository:    'techbuild-releases',
+                        credentialsId: 'nexus-creds',
+                        artifacts: [[
+                            artifactId: env.APP_NAME,
                             classifier: '',
-                            file: 'target/hello-world.war',
-                            type: 'war']
-                        ]
+                            file:       artifactFile,
+                            type:       fileExtension
+                        ]]
                     )
                 }
             }
             post {
                 success { echo 'Successfully uploaded artifact to Nexus!' }
-                failure { echo 'Nexus artifact upload failed — verify Nexus credentials and repository name.' }
+                failure { echo 'Nexus artifact upload failed.' }
+            }
+        }
+
+        // ── STAGE 8: Deploy Application ───────────────────────────────────
+        stage('Deploy Application') {
+            agent any // Runs on host node so it can launch application on port 8082
+            steps {
+                script {
+                    echo "Deploying ${env.APP_NAME} on Host Port 8082..."
+                    
+                    sh '''
+                        # Stop existing running app on port 8082 if active
+                        PID=$(lsof -ti:8082 || true)
+                        if [ -n "$PID" ]; then
+                            echo "Stopping existing process on port 8082 (PID: $PID)..."
+                            kill -9 $PID || true
+                        fi
+
+                        # Locate artifact file
+                        WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
+
+                        # Run Spring Boot app in background on port 8082 using BUILD_ID to prevent Jenkins from killing background process
+                        BUILD_ID=dontKillMe nohup java -jar $WAR_FILE --server.port=8082 > app.log 2>&1 &
+                        
+                        sleep 5
+                        echo "Deployment command issued successfully."
+                    '''
+                }
+            }
+            post {
+                success { echo "Deployment complete! App running at http://<EC2_PUBLIC_IP>:8082" }
+                failure { echo "Deployment failed." }
             }
         }
 
