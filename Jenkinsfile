@@ -3,13 +3,16 @@ pipeline {
     agent {
         docker {
             image 'maven:3.9.8-eclipse-temurin-21'
-            args  '-v $HOME/.m2:/tmp/.m2 -e MAVEN_CONFIG=/tmp/.m2'
+            // Avoid host mount permission issues by removing $HOME/.m2 binding
+            args  '--entrypoint=""'
         }
     }
 
     environment {
         APP_NAME    = 'hello-world-2'
         APP_VERSION = "1.0.${env.BUILD_NUMBER}"
+        // Points Maven local repository directly inside workspace
+        MAVEN_OPTS  = '-Dmaven.repo.local=.m2/repository'
     }
 
     options {
@@ -37,7 +40,7 @@ pipeline {
         stage('Build') {
             steps {
                 echo "Building ${env.APP_NAME} v${env.APP_VERSION}"
-                sh 'mvn clean compile -B -Dmaven.test.skip=true -Duser.home=/tmp'
+                sh 'mvn clean compile -B -Dmaven.test.skip=true'
             }
             post {
                 success { echo 'Compile successful — moving to Test stage.' }
@@ -48,7 +51,7 @@ pipeline {
         // ── STAGE 3: Test ─────────────────────────────────────────────────
         stage('Test') {
             steps {
-                sh 'mvn test -B -Duser.home=/tmp'
+                sh 'mvn test -B'
             }
             post {
                 always {
@@ -63,7 +66,7 @@ pipeline {
                 withSonarQubeEnv('SonarQube-Local') {
                     sh '''
                         mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                          -Duser.home=/tmp \
+                          -Dsonar.host.url=http://172.31.46.86:9000 \
                           -Dsonar.projectKey=hello-world-2 \
                           -Dsonar.projectName="hello-world-2" \
                           -Dsonar.java.binaries=target/classes
