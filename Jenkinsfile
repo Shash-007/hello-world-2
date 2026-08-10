@@ -12,6 +12,7 @@ pipeline {
         APP_NAME    = 'hello-world-2'
         APP_VERSION = "1.0.${env.BUILD_NUMBER}"
         // Points Maven local repository directly inside workspace
+        SONAR_URL    = 'http://172.17.0.1:9000'    // <-- Update this line
         MAVEN_OPTS  = '-Dmaven.repo.local=.m2/repository'
     }
 
@@ -66,7 +67,7 @@ pipeline {
                 withSonarQubeEnv('SonarQube-Local') {
                     sh '''
                         mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                          -Dsonar.host.url=http://172.31.46.86:9000 \
+                          -Dsonar.host.url=http://172.17.0.1:9000 \
                           -Dsonar.projectKey=hello-world-2 \
                           -Dsonar.projectName="hello-world-2" \
                           -Dsonar.java.binaries=target/classes \
