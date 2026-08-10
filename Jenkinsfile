@@ -17,7 +17,7 @@ pipeline {
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
         timestamps()
-        // ansiColor('xterm')
+        // yansiColor('xterm')
     }
 
     triggers {
