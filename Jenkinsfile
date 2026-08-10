@@ -96,8 +96,8 @@ pipeline {
             steps {
                 echo "Packaging ${env.APP_NAME} v${env.APP_VERSION}"
                 sh "mvn package -DskipTests -B -Drevision=${env.APP_VERSION}"
-                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: false, fingerprint: true
-                echo "Artifact archived: ${env.APP_NAME}-${env.APP_VERSION}.jar"
+                archiveArtifacts artifacts: 'target/*.war, target/*.jar', allowEmptyArchive: false, fingerprint: true
+                echo "Artifact archived: ${env.APP_NAME}-${env.APP_VERSION}"
             }
             post {
                 success { echo 'Package and archive completed successfully.' }
