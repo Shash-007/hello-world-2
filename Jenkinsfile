@@ -109,7 +109,7 @@ pipeline {
             steps {
                 script {
                     def artifactFile = sh(
-                        script: 'ls target/*.jar target/*.war 2>/dev/null | head -n 1',
+                        script: 'ls target/*.war target/*.jar 2>/dev/null | head -n 1',
                         returnStdout: true
                     ).trim()
                     
@@ -140,33 +140,38 @@ pipeline {
 
         // ── STAGE 8: Deploy Application ───────────────────────────────────
         stage('Deploy Application') {
+            // Override top-level container: run on host OS directly
+            agent { node { label '' } } 
             steps {
+                // Copy archived artifact from Stage 6 into host environment
+                unarchive mapping: ['target/*.war': '.', 'target/*.jar': '.']
+                
                 script {
                     echo "Deploying ${env.APP_NAME} on Host Port 8082..."
                     
                     sh '''
-                        # 1. Copy the built war/jar artifact to a persistent host location (/var/tmp)
+                        # 1. Locate the unarchived artifact
                         WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
                         if [ -z "$WAR_FILE" ]; then
-                            echo "ERROR: No war or jar artifact found in target/"
+                            echo "ERROR: No artifact found after unarchive step."
                             exit 1
                         fi
                         
                         echo "Copying $WAR_FILE to /var/tmp/app.war"
                         cp "$WAR_FILE" /var/tmp/app.war
 
-                        # 2. Kill any existing process running on port 8082
+                        # 2. Kill existing process running on port 8082
                         PID=$(lsof -ti:8082 || true)
                         if [ -n "$PID" ]; then
                             echo "Stopping existing process on port 8082 (PID: $PID)..."
                             kill -9 $PID || true
                         fi
 
-                        # 3. Launch background process on host OS using JENKINS_NODE_COOKIE
+                        # 3. Start background app process on Host OS
                         JENKINS_NODE_COOKIE=dontKillMe nohup java -jar /var/tmp/app.war --server.port=8082 > /var/tmp/app.log 2>&1 &
                         
                         sleep 5
-                        echo "Deployment command issued successfully."
+                        echo "Deployment command executed."
                     '''
                 }
             }
