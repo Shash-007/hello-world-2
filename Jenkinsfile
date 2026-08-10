@@ -118,19 +118,20 @@ pipeline {
                     def fileExtension = artifactFile.endsWith('.war') ? 'war' : 'jar'
                     
                     nexusArtifactUploader(
-                        nexusVersion:  'nexus3',
-                        protocol:      'http',
-                        nexusUrl:      '172.17.0.1:8081',
-                        groupId:       'io.techbuild',
-                        version:       env.APP_VERSION,
-                        repository:    'techbuild-releases',
-                        credentialsId: 'nexus-creds',
-                        artifacts: [[
-                            artifactId: env.APP_NAME,
+                        nexusVersion: 'nexus3',
+                        protocol: 'http',
+                        nexusUrl: '172.17.0.1:8081',
+                        groupId: 'io.techbuild',
+                        artifactId: 'hello-world-2',
+                        version: "1.0.${BUILD_NUMBER}",
+                        repository: 'techbuild-releases',
+                        credentialsId: 'nexus-creds', // Must match exact ID in Jenkins Credentials
+                        artifacts: [
+                            [artifactId: 'hello-world-2',
                             classifier: '',
-                            file:       artifactFile,
-                            type:       fileExtension
-                        ]]
+                            file: 'target/hello-world.war',
+                            type: 'war']
+                        ]
                     )
                 }
             }
