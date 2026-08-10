@@ -140,11 +140,11 @@ pipeline {
 
         // ── STAGE 8: Deploy Application ───────────────────────────────────
         stage('Deploy Application') {
-            // Override top-level container: run on host OS directly
+            // Override top-level container: run directly on host EC2 instance
             agent { node { label '' } } 
             steps {
-                // Copy archived artifact from Stage 6 into host environment
-                unarchive mapping: ['target/*.war': '.', 'target/*.jar': '.']
+                // Retrieve the archived artifact from Stage 6 without rigid path filters
+                unarchive mapping: [:]
                 
                 script {
                     echo "Deploying ${env.APP_NAME} on Host Port 8082..."
@@ -153,14 +153,14 @@ pipeline {
                         # 1. Locate the unarchived artifact
                         WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
                         if [ -z "$WAR_FILE" ]; then
-                            echo "ERROR: No artifact found after unarchive step."
+                            echo "ERROR: No artifact found after unarchiving."
                             exit 1
                         fi
                         
-                        echo "Copying $WAR_FILE to /var/tmp/app.war"
+                        echo "Found artifact: $WAR_FILE"
                         cp "$WAR_FILE" /var/tmp/app.war
 
-                        # 2. Kill existing process running on port 8082
+                        # 2. Kill existing process running on port 8082 if active
                         PID=$(lsof -ti:8082 || true)
                         if [ -n "$PID" ]; then
                             echo "Stopping existing process on port 8082 (PID: $PID)..."
@@ -177,7 +177,7 @@ pipeline {
             }
             post {
                 success { echo "Deployment complete! App running at http://15.168.173.29:8082" }
-                failure { echo "Deployment failed." }
+                failure { echo "Deployment failed — check workspace logs." }
             }
         }
     }
