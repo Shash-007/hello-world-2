@@ -11,8 +11,7 @@ pipeline {
     environment {
         APP_NAME    = 'hello-world-2'
         APP_VERSION = "1.0.${env.BUILD_NUMBER}"
-        // Points Maven local repository directly inside workspace
-        SONAR_URL    = 'http://172.17.0.1:9000'    // <-- Update this line
+        SONAR_URL   = 'http://172.17.0.1:9000'
         MAVEN_OPTS  = '-Dmaven.repo.local=.m2/repository'
     }
 
@@ -92,8 +91,6 @@ pipeline {
             }
         }
 
-
-
         // ── STAGE 6: Package & Archive ────────────────────────────────────
         stage('Package & Archive') {
             steps {
@@ -105,6 +102,41 @@ pipeline {
             post {
                 success { echo 'Package and archive completed successfully.' }
                 failure { echo 'Packaging failed — check Maven logs.' }
+            }
+        }
+
+        // ── STAGE 7: Publish to Nexus ─────────────────────────────────────
+        stage('Publish to Nexus') {
+            steps {
+                script {
+                    // Detect if the build output is a .jar or .war file
+                    def artifactFile = sh(
+                        script: 'ls target/*.jar target/*.war 2>/dev/null | head -n 1',
+                        returnStdout: true
+                    ).trim()
+                    
+                    def fileExtension = artifactFile.endsWith('.war') ? 'war' : 'jar'
+                    
+                    nexusArtifactUploader(
+                        nexusVersion:  'nexus3',
+                        protocol:      'http',
+                        nexusUrl:      '172.17.0.1:8081',
+                        groupId:       'io.techbuild',
+                        version:       env.APP_VERSION,
+                        repository:    'techbuild-releases',
+                        credentialsId: 'nexus-creds',
+                        artifacts: [[
+                            artifactId: env.APP_NAME,
+                            classifier: '',
+                            file:       artifactFile,
+                            type:       fileExtension
+                        ]]
+                    )
+                }
+            }
+            post {
+                success { echo 'Successfully uploaded artifact to Nexus!' }
+                failure { echo 'Nexus artifact upload failed — verify Nexus credentials and repository name.' }
             }
         }
 
