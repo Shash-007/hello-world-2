@@ -2,7 +2,8 @@ pipeline {
 
     agent {
         docker {
-            image 'maven:3.9.6-eclipse-temurin-17'
+            // Updated to Java 21 image
+            image 'maven:3.9.8-eclipse-temurin-21'
             args  '-v $HOME/.m2:/root/.m2'
         }
     }
@@ -62,7 +63,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube-Local') {
                     sh '''
-                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                           -Dsonar.projectKey=hello-world-2 \
                           -Dsonar.projectName="hello-world-2" \
                           -Dsonar.java.binaries=target/classes
