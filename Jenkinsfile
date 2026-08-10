@@ -74,9 +74,20 @@ pipeline {
                     '''
                 }
             }
-            post {
-                success { echo 'SonarQube analysis submitted successfully.' }
-                failure { echo 'SonarQube analysis FAILED — check connection and credentials.' }
+        }
+
+        // ── STAGE 5: Quality Gate ─────────────────────────────────────────
+        stage('Quality Gate') {
+            agent none
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to Quality Gate failure: ${qg.status}"
+                        }
+                    }
+                }
             }
         }
 
