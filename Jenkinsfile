@@ -166,7 +166,7 @@ pipeline {
                 message: "BUILD PASSED: ${env.APP_NAME} v${env.APP_VERSION} | ${env.BUILD_URL}"
             )
             emailext(
-                to:       'devteam@techbuild.io',
+                to:       'shashank.kodiyala02@gmail.com',
                 subject:  "BUILD PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body:     "Successful build for ${env.APP_NAME} v${env.APP_VERSION}\nURL: ${env.BUILD_URL}"
             )
