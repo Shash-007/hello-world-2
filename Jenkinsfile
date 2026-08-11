@@ -19,6 +19,7 @@ pipeline {
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
         timestamps()
+        ansiColor('xterm')
     }
 
     triggers {
@@ -32,6 +33,7 @@ pipeline {
             steps {
                 checkout scm
                 echo "Branch: ${env.GIT_BRANCH} | Commit: ${env.GIT_COMMIT[0..7]}"
+                sh 'git log --oneline -5'
             }
         }
 
@@ -56,6 +58,19 @@ pipeline {
                 always {
                     junit(testResults: 'target/surefire-reports/**/*.xml', allowEmptyResults: true)
                 }
+                unstable {
+                    echo 'WARNING: Tests failed — build marked UNSTABLE.'
+                    script {
+                        def results = currentBuild.rawBuild.getAction(
+                            hudson.tasks.test.AbstractTestResultAction.class)
+                        if (results) {
+                            def passRate = (results.totalCount - results.failCount) / results.totalCount * 100
+                            if (passRate < 80) {
+                                error("Test pass rate ${passRate.round(1)}% is below 80% threshold!")
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -67,9 +82,11 @@ pipeline {
                         mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                           -Dsonar.host.url=http://172.17.0.1:9000 \
                           -Dsonar.projectKey=hello-world-2 \
-                          -Dsonar.projectName="hello-world-2" \
+                          -Dsonar.projectName="TechBuild hello-world-2" \
+                          -Dsonar.projectVersion=${APP_VERSION} \
                           -Dsonar.java.binaries=target/classes \
-                          -Dsonar.userHome=.m2/.sonar
+                          -Dsonar.userHome=.m2/.sonar \
+                          -B
                     '''
                 }
             }
@@ -106,6 +123,7 @@ pipeline {
 
         // ── STAGE 7: Publish to Nexus ─────────────────────────────────────
         stage('Publish to Nexus') {
+            when { branch 'main' }
             steps {
                 script {
                     def artifactFile = sh(
@@ -137,49 +155,43 @@ pipeline {
                 failure { echo 'Nexus artifact upload failed.' }
             }
         }
-
-        // ── STAGE 8: Deploy Application ───────────────────────────────────
-        stage('Deploy Application') {
-            // Force this stage to run on the EC2 Host OS rather than inside the Docker agent
-            agent { node { label '' } }
-            steps {
-                script {
-                    echo "Deploying ${env.APP_NAME} on Host Port 8082..."
-                    
-                    sh '''
-                        # 1. Locate the packaged artifact inside target/
-                        WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
-                        if [ -z "$WAR_FILE" ]; then
-                            echo "ERROR: No artifact found in target/"
-                            exit 1
-                        fi
-                        
-                        echo "Found artifact: $WAR_FILE"
-                        cp "$WAR_FILE" /tmp/app.war
-
-                        # 2. Stop existing process running on port 8082 if active
-                        PID=$(sudo lsof -ti:8082 || true)
-                        if [ -n "$PID" ]; then
-                            echo "Stopping existing process on port 8082 (PID: $PID)..."
-                            sudo kill -9 $PID || true
-                        fi
-
-                        # 3. Launch process in background on EC2 Host
-                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar /tmp/app.war --server.port=8082 > /tmp/app.log 2>&1 &
-                        
-                        sleep 5
-                        echo "Deployment command issued successfully."
-                    '''
-                }
-            }
-            post {
-                success { echo "Deployment complete! App running at http://15.168.173.29:8082" }
-                failure { echo "Deployment failed." }
-            }
-        }
     }
 
+    // ── Post-build actions (Notifications) ───────────────────────────────
     post {
+        success {
+            echo "PIPELINE SUCCESS — ${env.APP_NAME} v${env.APP_VERSION}"
+            slackSend(
+                channel: '#ci-notifications',
+                color:   'good',
+                message: "BUILD PASSED: ${env.APP_NAME} v${env.APP_VERSION} | ${env.BUILD_URL}"
+            )
+            emailext(
+                to:       'devteam@techbuild.io',
+                subject:  "BUILD PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body:     "Successful build for ${env.APP_NAME} v${env.APP_VERSION}\nURL: ${env.BUILD_URL}"
+            )
+        }
+        failure {
+            echo "PIPELINE FAILED — check logs at ${env.BUILD_URL}"
+            slackSend(
+                channel: '#ci-notifications',
+                color:   'danger',
+                message: "BUILD FAILED: ${env.APP_NAME} #${env.BUILD_NUMBER} | ${env.BUILD_URL}"
+            )
+            emailext(
+                to:       'devteam@techbuild.io',
+                subject:  "BUILD FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body:     "Build ${env.BUILD_NUMBER} failed.\nConsole: ${env.BUILD_URL}console"
+            )
+        }
+        unstable {
+            slackSend(
+                channel: '#ci-notifications',
+                color:   'warning',
+                message: "BUILD UNSTABLE: ${env.APP_NAME} #${env.BUILD_NUMBER} — test failures | ${env.BUILD_URL}"
+            )
+        }
         always {
             cleanWs()
         }
