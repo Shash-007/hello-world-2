@@ -140,44 +140,39 @@ pipeline {
 
         // ── STAGE 8: Deploy Application ───────────────────────────────────
         stage('Deploy Application') {
-            // Override top-level container: run directly on host EC2 instance
-            agent { node { label '' } } 
             steps {
-                // Retrieve the archived artifact from Stage 6 without rigid path filters
-                unarchive mapping: [:]
-                
                 script {
                     echo "Deploying ${env.APP_NAME} on Host Port 8082..."
                     
                     sh '''
-                        # 1. Locate the unarchived artifact
+                        # 1. Locate the packaged artifact inside target/
                         WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
                         if [ -z "$WAR_FILE" ]; then
-                            echo "ERROR: No artifact found after unarchiving."
+                            echo "ERROR: No artifact found in target/"
                             exit 1
                         fi
                         
                         echo "Found artifact: $WAR_FILE"
-                        cp "$WAR_FILE" /var/tmp/app.war
+                        cp "$WAR_FILE" /tmp/app.war
 
-                        # 2. Kill existing process running on port 8082 if active
+                        # 2. Stop existing process running on port 8082 if active
                         PID=$(lsof -ti:8082 || true)
                         if [ -n "$PID" ]; then
                             echo "Stopping existing process on port 8082 (PID: $PID)..."
                             kill -9 $PID || true
                         fi
 
-                        # 3. Start background app process on Host OS
-                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar /var/tmp/app.war --server.port=8082 > /var/tmp/app.log 2>&1 &
+                        # 3. Launch process in background detached from durable task runner
+                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar /tmp/app.war --server.port=8082 > /tmp/app.log 2>&1 &
                         
-                        sleep 5
-                        echo "Deployment command executed."
+                        sleep 3
+                        echo "Deployment command issued successfully."
                     '''
                 }
             }
             post {
                 success { echo "Deployment complete! App running at http://15.168.173.29:8082" }
-                failure { echo "Deployment failed — check workspace logs." }
+                failure { echo "Deployment failed." }
             }
         }
     }
