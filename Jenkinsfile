@@ -3,7 +3,7 @@ pipeline {
     agent {
         docker {
             image 'maven:3.9.8-eclipse-temurin-21'
-            args  '--entrypoint=""'
+            args  '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint=""'
         }
     }
 
@@ -142,31 +142,32 @@ pipeline {
         stage('Deploy Application') {
             steps {
                 script {
-                    echo "Deploying ${env.APP_NAME} on Host Port 8082..."
+                    echo "Deploying ${env.APP_NAME} via Docker Container on Host Port 8082..."
                     
                     sh '''
-                        # 1. Locate the packaged artifact inside target/
+                        # 1. Get workspace path on host
                         WAR_FILE=$(ls target/*.war target/*.jar 2>/dev/null | head -n 1)
                         if [ -z "$WAR_FILE" ]; then
                             echo "ERROR: No artifact found in target/"
                             exit 1
                         fi
                         
-                        echo "Found artifact: $WAR_FILE"
-                        cp "$WAR_FILE" /tmp/app.war
+                        HOST_WAR_PATH="$(pwd)/$WAR_FILE"
 
-                        # 2. Stop existing process running on port 8082 if active
-                        PID=$(lsof -ti:8082 || true)
-                        if [ -n "$PID" ]; then
-                            echo "Stopping existing process on port 8082 (PID: $PID)..."
-                            kill -9 $PID || true
-                        fi
+                        # 2. Stop existing application container if running
+                        docker rm -f hello-world-app || true
 
-                        # 3. Launch process in background detached from durable task runner
-                        JENKINS_NODE_COOKIE=dontKillMe nohup java -jar /tmp/app.war --server.port=8082 > /tmp/app.log 2>&1 &
+                        # 3. Launch background app container using mounted host socket
+                        docker run -d \
+                          --name hello-world-app \
+                          --restart unless-stopped \
+                          -p 8082:8082 \
+                          -v "$HOST_WAR_PATH":/app/app.war \
+                          eclipse-temurin:21-jre \
+                          java -jar /app/app.war --server.port=8082
                         
-                        sleep 3
-                        echo "Deployment command issued successfully."
+                        sleep 5
+                        echo "Container started successfully."
                     '''
                 }
             }
